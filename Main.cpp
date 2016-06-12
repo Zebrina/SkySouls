@@ -10,7 +10,6 @@
 IDebugLog gLog("NoMenuPause.log");
 
 PluginHandle g_pluginHandle = kPluginHandle_Invalid;
-SKSEMessagingInterface*	g_messaging = nullptr;
 
 // These menus cannot be paused!
 BSFixedString MainMenu("Main Menu");
