@@ -26,7 +26,6 @@ BSFixedString FavoritesMenu("FavoritesMenu");
 BSFixedString BookMenu("Book Menu");
 //BSFixedString LockpickingMenu("Lockpicking Menu"); // Does not work :(
 BSFixedString BarterMenu("BarterMenu");
-BSFixedString CraftingMenu("Crafting Menu");
 BSFixedString TrainingMenu("Training Menu");
 
 bool __fastcall GetNoPause(MenuManager* mm) {
@@ -36,7 +35,7 @@ bool __fastcall GetNoPause(MenuManager* mm) {
 		if (mm->IsMenuOpen(&MainMenu) || mm->IsMenuOpen(&LoadingMenu) || mm->IsMenuOpen(&Console) || mm->IsMenuOpen(&TutorialMenu) || mm->IsMenuOpen(&TweenMenu)) {
 			return false;
 		}
-		return mm->IsMenuOpen(&MagicMenu) || mm->IsMenuOpen(&InventoryMenu) || mm->IsMenuOpen(&ContainerMenu) || mm->IsMenuOpen(&FavoritesMenu) || mm->IsMenuOpen(&BookMenu) || mm->IsMenuOpen(&BarterMenu) || mm->IsMenuOpen(&CraftingMenu) || mm->IsMenuOpen(&TrainingMenu);
+		return mm->IsMenuOpen(&MagicMenu) || mm->IsMenuOpen(&InventoryMenu) || mm->IsMenuOpen(&ContainerMenu) || mm->IsMenuOpen(&FavoritesMenu) || mm->IsMenuOpen(&BookMenu) || mm->IsMenuOpen(&BarterMenu) || mm->IsMenuOpen(&TrainingMenu);
 	}
 
 	return false;
