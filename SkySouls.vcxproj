@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{0D30B17F-2BE1-4246-AB09-7DE17BF39319}</ProjectGuid>
     <RootNamespace>GearedUp</RootNamespace>
-    <ProjectName>SkyrimSkySouls</ProjectName>
+    <ProjectName>SkySouls</ProjectName>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
