@@ -1,4 +1,4 @@
-LIBRARY	"NoMenuPause"
+LIBRARY	"SkySouls"
 EXPORTS
 SKSEPlugin_Query
 SKSEPlugin_Load
