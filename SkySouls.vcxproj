@@ -151,6 +151,7 @@
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MenuEquip.cpp" />
+    <ClCompile Include="SkySoulsSettings.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Exports.def" />
@@ -159,6 +160,7 @@
   <ItemGroup>
     <ClInclude Include="MenuCreation.h" />
     <ClInclude Include="MenuEquip.h" />
+    <ClInclude Include="SkySoulsSettings.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

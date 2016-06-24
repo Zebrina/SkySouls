@@ -11,6 +11,8 @@ class BGSEquipSlot;
 typedef void (EquipManager::*EquipItemMethod)(Actor*, TESForm*, BaseExtraList*, SInt32 count, BGSEquipSlot*, bool, bool, bool, void*);
 typedef bool (EquipManager::*UnequipItemMethod)(Actor*, TESForm*, BaseExtraList*, SInt32 count, BGSEquipSlot*, bool, bool, bool, bool, void*);
 
+constexpr const UInt32 ExtraWornVTable = 0x010791c8;
+
 struct MenuEquipData {
 	UInt32 equipAt;
 	EquipManager* equipManager;
