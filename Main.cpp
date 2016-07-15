@@ -8,288 +8,76 @@
 
 *************************************************/
 
-#include "MenuCreation.h"
-#include "MenuEquip.h"
+#pragma warning(disable : 4731)
+
+#include "GamePauseHandler.h"
+#include "MenuCreator.h"
 
 #include "skse/PluginAPI.h"
 #include "skse/skse_version.h"
 #include "skse/GameAPI.h"
 
+#include "skse/GameThreads.h"
 #include "skse/GameData.h"
 #include "skse/GameExtraData.h"
 #include "skse/GameMenus.h"
-#include "skse/ScaleformCallbacks.h"
+#include "skse/PapyrusVM.h"
+#include "skse/PapyrusNativeFunctions.h"
 
 #include "skse/SafeWrite.h"
 
-#include <forward_list>
+#include "MemUtil.h"
+
+using namespace MemUtil;
+
+typedef void (UIManager::*UIManager_AddMessage)(StringCache::Ref* strData, UInt32 msgID, void* objData);
+typedef void (ActorProcessManager::*ActorProcessManager_UpdateEquipment)(Actor*);
+
+UIManager_AddMessage Original_UIManager_AddMessage = nullptr;
+ActorProcessManager_UpdateEquipment Original_ActorProcessManager_UpdateEquipment = nullptr;
 
 IDebugLog gLog("SkySouls.log");
 PluginHandle g_pluginHandle = kPluginHandle_Invalid;
-SKSEMessagingInterface* g_messaging = nullptr;
 
-UInt8* g_staticMenuPauseByte = (UInt8*)0x01b2e85f;
+SKSEMessagingInterface*	g_messaging = nullptr;
+SKSETaskInterface*		g_task = nullptr;
+SKSEPapyrusInterface*	g_papyrus = nullptr;
 
-UInt32* g_menuPauseNumRequestsFaked; // Pointer to the variable which controls whether the game should be paused or not.
-UInt32 g_menuPauseNumRequestsActual;
-
-constexpr const UInt32* IMenuVTable_MessageBoxMenu	= (UInt32*)0x010e6b34;
-constexpr const UInt32* IMenuVTable_TweenMenu		= (UInt32*)0x010e8140;
-constexpr const UInt32* IMenuVTable_InventoryMenu	= (UInt32*)0x010e5b90;
-constexpr const UInt32* IMenuVTable_MagicMenu		= (UInt32*)0x010e6594;
-constexpr const UInt32* IMenuVTable_ContainerMenu	= (UInt32*)0x010e4098;
-constexpr const UInt32* IMenuVTable_FavoritesMenu	= (UInt32*)0x010e4e18;
-constexpr const UInt32* IMenuVTable_CraftingMenu	= nullptr;
-constexpr const UInt32* IMenuVTable_BarterMenu		= nullptr;
-constexpr const UInt32* IMenuVTable_TrainingMenu	= nullptr;
-constexpr const UInt32* IMenuVTable_LockpickingMenu	= (UInt32*)0x010e6308;
-constexpr const UInt32* IMenuVTable_BookMenu		= (UInt32*)0x010e3aa4;
-constexpr const UInt32* IMenuVTable_MapMenu			= (UInt32*)0x010e95b4;
-constexpr const UInt32* IMenuVTable_StatsMenu		= (UInt32*)0x010e7ad4;
-constexpr const UInt32* IMenuVTable_CursorMenu		= (UInt32*)0x010e4bd4;
-
-BSFixedString MainMenu("Main Menu");
-BSFixedString LoadingMenu("Loading Menu");
-BSFixedString Console("Console");
-BSFixedString TutorialMenu("Tutorial Menu");
-BSFixedString MessageBoxMenu("MessageBoxMenu");
-BSFixedString TweenMenu("TweenMenu");
-BSFixedString InventoryMenu("InventoryMenu");
-BSFixedString MagicMenu("MagicMenu");
-BSFixedString ContainerMenu("ContainerMenu");
-BSFixedString FavoritesMenu("FavoritesMenu");
-BSFixedString CraftingMenu("Crafting Menu");
-BSFixedString BarterMenu("BarterMenu");
-BSFixedString TrainingMenu("Training Menu");
-BSFixedString LockpickingMenu("Lockpicking Menu");
-BSFixedString BookMenu("Book Menu");
-BSFixedString MapMenu("MapMenu");
-BSFixedString StatsMenu("StatsMenu");
-BSFixedString CursorMenu("Cursor Menu");
-
-#define GetObjectVTable(ptr) (*(UInt32**)(ptr))
-
-template<typename T>
-T GetUndefinedMethodPtr(unsigned int addr) {
-	union AddrToPtr {
-		unsigned int addr;
-		T ptr;
-	};
-
-	AddrToPtr atp;
-	atp.addr = addr;
-	return atp.ptr;
-}
-#define CallUndefinedMemberFunction(thisPtr, method) ((thisPtr)->*(method))
-
-void __stdcall WriteRedirectionHook(UInt32 targetOfHook, UInt32 sourceBegin, UInt32 sourceEnd, UInt32 asmSegSize) {
-	WriteRelJump(targetOfHook, sourceBegin);
-
-	for (int i = 5; i < asmSegSize; ++i) {
-		SafeWrite8(targetOfHook + i, 0x90); // nop
-	}
-
-	WriteRelJump(sourceEnd, targetOfHook + asmSegSize);
-}
-
-#define AsmSimpleHookBegin(id, addr, retnOffset)		\
-		__asm push dword ptr retnOffset					\
-		__asm push NOMENUPAUSE_##id##_END_OF_HOOK		\
-		__asm push NOMENUPAUSE_##id##_START_OF_HOOK		\
-		__asm push addr									\
-		__asm call WriteRedirectionHook					\
-		__asm add esp, 0x10								\
-		__asm jmp NOMENUPAUSE_##id##_SKIP_HOOK			\
-	__asm NOMENUPAUSE_##id##_START_OF_HOOK:
-
-#define AsmRedirectHookBegin(id, addr, retnOffset, newFunc, oldFuncPtr)	\
-		__asm push eax													\
-		__asm mov eax, NOMENUPAUSE_##id##_ORIGINAL_CODE					\
-		__asm mov oldFuncPtr, eax										\
-		__asm pop eax													\
-		__asm push dword ptr retnOffset									\
-		__asm push NOMENUPAUSE_##id##_END_OF_HOOK						\
-		__asm push newFunc												\
-		__asm push addr													\
-		__asm call WriteRedirectionHook									\
-		__asm add esp, 0x10												\
-		__asm jmp NOMENUPAUSE_##id##_SKIP_HOOK							\
-	__asm NOMENUPAUSE_##id##_ORIGINAL_CODE:
-
-#define AsmHookEnd(id)									\
-	__asm NOMENUPAUSE_##id##_END_OF_HOOK:				\
-		__asm nop										\
-		__asm nop										\
-		__asm nop										\
-		__asm nop										\
-		__asm nop										\
-	__asm NOMENUPAUSE_##id##_SKIP_HOOK:
-
-bool __stdcall IsMenuInstanceUnpaused(IMenu* menu) {
-	UInt32* vtbl = GetObjectVTable(menu);
-	if (vtbl == IMenuVTable_InventoryMenu ||
-		vtbl == IMenuVTable_MagicMenu ||
-		vtbl == IMenuVTable_ContainerMenu ||
-		vtbl == IMenuVTable_FavoritesMenu ||
-		vtbl == IMenuVTable_BookMenu ||
-		vtbl == IMenuVTable_LockpickingMenu) {
-		return true;
-	}
-	return false;
-}
-bool __stdcall IsMenuUnpaused(StringCache::Ref& menuName) {
-	return menuName == InventoryMenu ||
-		menuName == MagicMenu ||
-		menuName == ContainerMenu ||
-		menuName == FavoritesMenu ||
-		menuName == LockpickingMenu ||
-		menuName == BookMenu;
-}
-
-class IDelayedProcess {
-public:
-	virtual void execute() = 0;
-	virtual void cleanUp() { delete this; }
-};
-
-class NoMenuPauseController {
-private:
-	class Entry {
-	public:
-		struct RemoveIfPred {
-			SInt32 counter;
-
-			RemoveIfPred(SInt32 _counter) :
-				counter(_counter) {
-			}
-
-			bool operator()(Entry& entry) {
-				return entry.test(counter);
-			}
-		};
-
-		Entry(IDelayedProcess* _process, SInt32 _delayBefore, SInt32 _delayAfter) :
-			process(_process), delayBefore(_delayBefore), delayAfter(_delayAfter) {
-		}
-		Entry(Entry&) = delete;
-		Entry(Entry&& other) :
-			process(other.process), delayBefore(other.delayBefore), delayAfter(other.delayAfter) {
-			other.process = nullptr;
-		}
-
-		bool test(SInt32 counter) {
-			if (counter >= delayBefore) {
-				if (process) {
-					process->execute();
-					process->cleanUp();
-					process = nullptr;
-				}
-				return counter >= (delayBefore + delayAfter);
-			}
-			return false;
-		}
-
-	private:
-		IDelayedProcess* process;
-		SInt32 delayBefore;
-		SInt32 delayAfter;
-	};
-
-public:
-	static NoMenuPauseController& GetSingleton() {
-		static NoMenuPauseController instance;
-		return instance;
-	}
-
-	NoMenuPauseController() = default;
-	NoMenuPauseController(const NoMenuPauseController&) = default;
-
-	operator bool() const {
-		return processes.empty();
-	}
-
-	void update() {
-		if (!processes.empty()) {
-			processes.remove_if(Entry::RemoveIfPred(counter));
-			++counter;
-		}
-	}
-
-	void queueProcess(IDelayedProcess* process, SInt32 delayBefore, SInt32 delayAfter) {
-		if (processes.empty()) {
-			counter = 0;
-		}
-		processes.emplace_front(process, delayBefore, delayAfter);
-	}
-
-private:
-	std::forward_list<Entry> processes;
-	SInt32 counter;
-};
-
-NoMenuPauseController g_noMenuPauseController;
+CreateTweenMenu			g_tweenMenuCreator;
+CreateInventoryMenu		g_inventoryMenuCreator;
+CreateContainerMenu		g_containerMenuCreator;
+CreateMagicMenu			g_magicMenuCreator;
+CreateFavoritesMenu		g_favoritesMenuCreator;
+/*
+CreateLockpickingMenu	g_lockpickingMenuCreator;
+CreateBookMenu			g_bookMenuCreator;
+*/
 
 /* hooks */
 
-bool __stdcall PreDefaultGameProcessing() {
-	g_noMenuPauseController.update();
-	return g_noMenuPauseController;
+/*
+void __fastcall UIManager_AddMessage_Hook(UIManager* thisPtr, void*, StringCache::Ref* strData, UInt32 msgID, void* objData) {
+	if (msgID == UIMessage::kMessage_Open) {
+		GamePauseHandler::GetSingleton()->disableTemporary(5);
+	}
+	_CallMemberFunction(thisPtr, (UIManager_AddMessage)Original_UIManager_AddMessage)(strData, msgID, objData);
+}
+*/
+
+
+void __fastcall ActorProcessManager_UpdateEquipment_Hook(ActorProcessManager* thisPtr, void*, Actor* actor) {
+	static BSFixedString inventoryMenu = UIStringHolder::GetSingleton()->inventoryMenu;
+	static BSFixedString containerMenu = UIStringHolder::GetSingleton()->containerMenu;
+	static BSFixedString favoritesMenu = UIStringHolder::GetSingleton()->favoritesMenu;
+
+	MenuManager* menuManager = MenuManager::GetSingleton();
+
+	if (!menuManager->IsMenuOpen(&inventoryMenu) && !menuManager->IsMenuOpen(&containerMenu) && !menuManager->IsMenuOpen(&favoritesMenu)) {
+		_CallMemberFunction(thisPtr, Original_ActorProcessManager_UpdateEquipment)(actor);
+	}
 }
 
-typedef void (UIManager::*UIManager_AddMessage)(StringCache::Ref* strData, UInt32 msgID, void* objData);
-UIManager_AddMessage Original_UIManager_AddMessage;
 
-class UIManagerAddMessageProcess : public IDelayedProcess {
-public:
-	UIManagerAddMessageProcess(UIManager* _uiManager, StringCache::Ref* _strData, UInt32 _msgID, void* _objData) :
-		uiManager(_uiManager), strData(_strData), msgID(_msgID), objData(_objData) {}
-
-	virtual void execute() {
-		CallUndefinedMemberFunction(uiManager, Original_UIManager_AddMessage)(strData, msgID, objData);
-	}
-
-	static void __fastcall UIManager_AddMessage_Hook(UIManager* thisPtr, void*, StringCache::Ref* strData, UInt32 msgID, void* objData) {
-		if (msgID == UIMessage::kMessage_Open && g_menuPauseNumRequestsActual == 0 && strData && (*strData == LockpickingMenu || *strData == BookMenu)) {
-			g_noMenuPauseController.queueProcess(new UIManagerAddMessageProcess(thisPtr, strData, msgID, objData), 10, 10);
-			_MESSAGE("AddMessage queued");
-		}
-		else {
-			CallUndefinedMemberFunction(thisPtr, Original_UIManager_AddMessage)(strData, msgID, objData);
-		}
-	}
-
-private:
-	UIManager* uiManager;
-	StringCache::Ref* strData;
-	UInt32 msgID;
-	void* objData;
-};
-
-typedef void (IMenu::*IMenu_Accept)(FxDelegateHandler::CallbackProcessor* processor);
-IMenu_Accept Original_IMenu_Accept;
-
-class IMenuAcceptProcess : public IDelayedProcess {
-public:
-	IMenuAcceptProcess(IMenu* _menu, FxDelegateHandler::CallbackProcessor* _processor) :
-		menu(_menu), processor(_processor) {}
-
-	virtual void execute() {
-		CallUndefinedMemberFunction(menu, Original_IMenu_Accept)(processor);
-	}
-
-	static void __fastcall IMenu_Accept_Hook(IMenu* thisPtr, void*, FxDelegateHandler::CallbackProcessor* processor) {
-		if (IsMenuInstanceUnpaused(thisPtr) && g_menuPauseNumRequestsActual > 0) {
-			g_noMenuPauseController.queueProcess(new IMenuAcceptProcess(thisPtr, processor), 1, 1);
-		}
-		else {
-			CallUndefinedMemberFunction(thisPtr, Original_IMenu_Accept)(processor);
-		}
-	}
-
-private:
-	IMenu* menu;
-	FxDelegateHandler::CallbackProcessor* processor;
-};
 
 void SkySouls_Messaging_Callback(SKSEMessagingInterface::Message* msg) {
 	if (msg->type == SKSEMessagingInterface::kMessage_DataLoaded) {
@@ -297,114 +85,184 @@ void SkySouls_Messaging_Callback(SKSEMessagingInterface::Message* msg) {
 
 		_MESSAGE("kMessage_DataLoaded begin");
 
-		g_menuPauseNumRequestsFaked = (UInt32*)((UInt32)MenuManager::GetSingleton() + 0xc8);
-		g_menuPauseNumRequestsActual = *g_menuPauseNumRequestsFaked;
+		static GamePauseHandler* gamePauseHandler = GamePauseHandler::GetSingleton();
 
-		//WriteNoMenuPauseComplexHook(0x0069cc6e, ecx, ebx);
+		UIStringHolder* uiStringHolder = UIStringHolder::GetSingleton();
+
+		// Configuration
+		constexpr const char* configFileName = "Data\\SKSE\\Plugins\\SkySouls.ini";
+		constexpr const char* sectionName = "GamePause";
+
+		if (GetPrivateProfileInt(sectionName, "bDisableGamePauseTweenMenu", 0, configFileName) != 0) {
+			gamePauseHandler->registerMenu(uiStringHolder->tweenMenu, g_tweenMenuCreator);
+		}
+		if (GetPrivateProfileInt(sectionName, "bDisableGamePauseInventoryMenu", 0, configFileName) != 0) {
+			gamePauseHandler->registerMenu(uiStringHolder->inventoryMenu, g_inventoryMenuCreator);
+		}
+		if (GetPrivateProfileInt(sectionName, "bDisableGamePauseContainerMenu", 0, configFileName) != 0) {
+			gamePauseHandler->registerMenu(uiStringHolder->containerMenu, g_containerMenuCreator);
+		}
+		if (GetPrivateProfileInt(sectionName, "bDisableGamePauseMagicMenu", 0, configFileName) != 0) {
+			gamePauseHandler->registerMenu(uiStringHolder->magicMenu, g_magicMenuCreator);
+		}
+		if (GetPrivateProfileInt(sectionName, "bDisableGamePauseFavoritesMenu", 0, configFileName) != 0) {
+			gamePauseHandler->registerMenu(uiStringHolder->favoritesMenu, g_favoritesMenuCreator);
+		}
+		//gamePauseHandler->registerMenu(uiStringHolder->lockpickingMenu, g_lockpickingMenuCreator);
+		//gamePauseHandler->registerMenu(uiStringHolder->bookMenu, g_bookMenuCreator);
 
 		__asm {
-			AsmSimpleHookBegin(PreDefaultGameProcessing, 0x0069cc6e, 6);
+			_AsmBasicHookPrefix(_GameUpdate, 0x0069cc6e, 6);
 
 			pushad;
-			call PreDefaultGameProcessing;
-			test al, al;
+
+			add ecx, 0x94;
+			push ecx; // menu stack
+			push[ecx + 0x34]; // game pause counter
+			mov ecx, gamePauseHandler;
+			call GamePauseHandler::update;
+
 			popad;
 
-			jnz DelayedProcessing;
+			// replaced code
+			cmp[ecx + 0xc8], ebx;
 
-			/* original code */
-			cmp[ecx + 0x000000C8], ebx;
-			jmp ReturnToDefaultProcessing;
-
-		DelayedProcessing:
-			cmp g_menuPauseNumRequestsActual, ebx;
-
-		ReturnToDefaultProcessing:
-			AsmHookEnd(PreDefaultGameProcessing);
+			_AsmHookSuffix(_GameUpdate);
 		}
 
+		//WriteOpCode16WithImmediate(0x0056ef86, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride()); // ??
+		WriteOpCode16WithImmediate(0x00772a5a, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride()); // player controls
+		WriteOpCode16WithImmediate(0x008792ea, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride()); // menu controls
+
+		//WriteOpCode16WithImmediate(0x0069ce24, Cmp_BytePtrImm_BL, gamePauseHandler->getGamePauseOverride()); // projectiles
+		//WriteOpCode16WithImmediate(0x0069490a, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride()); // invincible inside menu, die on exit
+
+		// ??
+		/*
+		WriteOpCode16WithImmediate(0x006c7b55, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0073e241, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x008648d5, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0073f358, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x004c839a, Cmp_DwordPtrImm_EBP, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0086490b, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00a5d9db, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00a5d6c8, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		*/
+
+
+		/*
+		WriteOpCode16WithImmediate(0x0069cca3, Cmp_BytePtrImm_BL, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x006944f0, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00694550, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00694aa5, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0069ce79, Cmp_BytePtrImm_BL, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0069cea0, Cmp_BytePtrImm_BL, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode24WithImmediate(0x0069cf39, Movzx_BytePtrImm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0069cf59, Cmp_BytePtrImm_BL, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0069cf80, Cmp_BytePtrImm_BL, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00694680, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0069cfc3, Cmp_BytePtrImm_BL, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00694ad0, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x008d41e0, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00694880, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x006946f0, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0069474f, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x0069484d, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x006910b0, Cmp_BytePtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		*/
+
+
+		/*
+		WriteOpCode16WithImmediate(0x00a5d480, Mov_ECX_DwordPtrImm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00878b80, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x008799b1, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		WriteOpCode16WithImmediate(0x00879abc, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		*/
+
+		// after game pause increment/decrement
+		//WriteOpCode16WithImmediate(0x00a5d9e8, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		//WriteOpCode16WithImmediate(0x00a5d6d5, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+
+
+		// when equipping/unequipping armor
+		//WriteOpCode16WithImmediate(0x00737acd, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+		//WriteOpCode16WithImmediate(0x00737bb5, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+
+
+
+
+		//WriteOpCode16WithImmediate(0x005d1e03, Cmp_DwordPtrImm_Imm, gamePauseHandler->getGamePauseOverride());
+
+		// disable game pause handler for a few "ticks" after requesting to open a menu
+		/*
 		__asm {
-			AsmSimpleHookBegin(SetMenuPause, 0x00a5d917, 6);
+			_AsmRedirectHookPrefix(_AddMessage, 0x00431b00, 10, UIManager_AddMessage_Hook, Original_UIManager_AddMessage);
 
-			pushad;
-
+			// original code
 			push eax;
-			call IsMenuInstanceUnpaused;
-			test al, al;
-
-			popad;
-
-			jnz IgnoreSetMenuPauseRequest;
-
-			/* original code */
-			add dword ptr[esi + 0x000000c8], 1;
-
-		IgnoreSetMenuPauseRequest:
-			add g_menuPauseNumRequestsActual, ecx;
-
-			AsmHookEnd(SetMenuPause);
-		}
-
-		__asm {
-			AsmSimpleHookBegin(ClearMenuPause, 0x00a5d5f4, 6);
-
-			pushad;
-
-			push edi;
-			call IsMenuInstanceUnpaused;
-			test al, al;
-
-			popad;
-
-			jnz IgnoreClearMenuPauseRequest;
-
-			/* original code */
-			add dword ptr[esi + 0x000000c8], -1;
-
-		IgnoreClearMenuPauseRequest:
-			add g_menuPauseNumRequestsActual, eax;
-
-			AsmHookEnd(ClearMenuPause);
-		}
-
-		// Disable "player controls" inside unpaused menus.
-		SafeWrite16(0x00772a5a, 0x3d83); // cmp [reg + offset], 0 -> cmp [ptr], 0
-		SafeWrite32(0x00772a5a + 2, (UInt32)&g_menuPauseNumRequestsActual);
-
-		// Prevent favorite hotkeys being usable inside menus.
-		SafeWrite16(0x00879abc, 0x3d83); // cmp [reg + offset], 0 -> cmp [ptr], 0
-		SafeWrite32(0x00879abc + 2, (UInt32)&g_menuPauseNumRequestsActual);
-
-		// Fix for lockpicking/book menus not opening.
-		__asm {
-			AsmRedirectHookBegin(LockpickingBookMenuFix, 0x00431b00, 10, UIManagerAddMessageProcess::UIManager_AddMessage_Hook, Original_UIManager_AddMessage);
-
-			/* original code */
-			push ecx;
 			push esi;
 			mov esi, ecx;
 			mov eax, [esi + 0x000001c8];
 
-			AsmHookEnd(LockpickingBookMenuFix);
+			_AsmHookSuffix(_AddMessage);
 		}
+		*/
 
-		//WriteRelCall(0x00a5c192, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x00a5c266, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x0069495c, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x00a5c192, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x00a5c266, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x0069495c, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x00a5c192, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x00a5c266, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
-		//WriteRelCall(0x0069495c, GetFnAddr(UIManager_AddMessage_DelayedProcess::UIManager_AddMessage_Hook));
+		// prevent worn armor from updating inside menus
+		__asm {
+			_AsmRedirectHookPrefix(_UpdateEquipment, 0x7031a0, 6, ActorProcessManager_UpdateEquipment_Hook, Original_ActorProcessManager_UpdateEquipment);
 
+			// original code
+			sub esp, 0x10;
+			push ebp;
+			mov ebp, ecx;
 
-		// Fix for equip/unequip in inventory menus.
-		WriteRelCall(0x0086a4c9, GetFnAddr(IMenuAcceptProcess::IMenu_Accept_Hook));
+			_AsmHookSuffix(_UpdateEquipment);
+		}
 
 		_MESSAGE("kMessage_DataLoaded end");
 	}
 }
+
+namespace SkySoulsPapyrus {
+	bool IsEnabled(StaticFunctionTag*) {
+		return GamePauseHandler::GetSingleton()->isEnabled();
+	}
+
+	void Enable(StaticFunctionTag*, bool flag) {
+		GamePauseHandler* gamePauseHandler = GamePauseHandler::GetSingleton();
+		if (flag) {
+			gamePauseHandler->enable();
+		}
+		else {
+			gamePauseHandler->disable();
+		}
+	}
+
+	/*
+	bool DisableMenuGamePause(StaticFunctionTag*, BSFixedString menuName, bool flag) {
+		UIStringHolder* uiStringHolder = UIStringHolder::GetSingleton();
+		GamePauseHandler* gamePauseHandler = GamePauseHandler::GetSingleton();
+
+		return false;
+	}
+	*/
+
+	bool RegisterAPI(VMClassRegistry* registry) {
+		constexpr const char* modName = "SkySouls";
+
+		registry->RegisterFunction(new NativeFunction0<StaticFunctionTag, bool>("IsEnabled", modName, IsEnabled, registry));
+		registry->SetFunctionFlags(modName, "IsEnabled", VMClassRegistry::kFunctionFlag_NoWait);
+		registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, void, bool>("Enable", modName, Enable, registry));
+		registry->SetFunctionFlags(modName, "Enable", VMClassRegistry::kFunctionFlag_NoWait);
+		/*
+		registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, bool, BSFixedString, bool>("DisableMenuGamePause", modName, DisableMenuGamePause, registry));
+		registry->SetFunctionFlags(modName, "DisableMenuGamePause", VMClassRegistry::kFunctionFlag_NoWait);
+		*/
+
+		return true;
+	}
+};
 
 extern "C" {
 
@@ -443,6 +301,32 @@ extern "C" {
 			return false;
 		}
 
+		// get the messaging interface and query its version
+		g_task = (SKSETaskInterface*)skse->QueryInterface(kInterface_Task);
+		if (!g_task) {
+			_MESSAGE("\tcouldn't get task interface");
+
+			return false;
+		}
+		if (g_task->kInterfaceVersion < SKSETaskInterface::kInterfaceVersion) {
+			_MESSAGE("\task interface too old (%d expected %d)", g_task->interfaceVersion, SKSETaskInterface::kInterfaceVersion);
+
+			return false;
+		}
+
+		// get the papyrus interface and query its version
+		g_papyrus = (SKSEPapyrusInterface*)skse->QueryInterface(kInterface_Papyrus);
+		if (!g_papyrus) {
+			_MESSAGE("\tcouldn't get papyrus interface");
+
+			return false;
+		}
+		if (g_papyrus->interfaceVersion < SKSEPapyrusInterface::kInterfaceVersion) {
+			_MESSAGE("\tpapyrus interface too old (%d expected %d)", g_papyrus->interfaceVersion, SKSEPapyrusInterface::kInterfaceVersion);
+
+			return false;
+		}
+
 		_MESSAGE("SKSEPlugin_Query end");
 
 		// supported runtime version
@@ -452,25 +336,14 @@ extern "C" {
 	bool SKSEPlugin_Load(const SKSEInterface * skse) {
 		_MESSAGE("SKSEPlugin_Load begin");
 
-		__asm {
-			/* initialize static function pointers */
-
-			push eax;
-
-			mov eax, 0x00869db0;
-			mov Original_IMenu_Accept, eax;
-
-			pop eax;
-		}
-
-		HookNoPauseMenuCreation<'bart'>(&BarterMenu);
-		HookNoPauseMenuCreation<'crft'>(&CraftingMenu);
-		HookNoPauseMenuCreation<'trng'>(&TrainingMenu);
-
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", SkySouls_Messaging_Callback);
+
+		g_papyrus->Register(SkySoulsPapyrus::RegisterAPI);
 
 		_MESSAGE("SKSEPlugin_Load end");
 
 		return true;
 	}
 };
+
+#pragma warning(default : 4731)

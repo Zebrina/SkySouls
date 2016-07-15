@@ -76,7 +76,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <SDLCheck>
       </SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -105,7 +105,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -150,17 +150,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
-    <ClCompile Include="MenuEquip.cpp" />
-    <ClCompile Include="SkySoulsSettings.cpp" />
+    <ClCompile Include="MemUtil.cpp" />
+    <ClCompile Include="GamePauseHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Exports.def" />
-    <None Include="SkySouls.ini" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MenuCreation.h" />
-    <ClInclude Include="MenuEquip.h" />
-    <ClInclude Include="SkySoulsSettings.h" />
+    <ClInclude Include="MemUtil.h" />
+    <ClInclude Include="MenuCreator.h" />
+    <ClInclude Include="GamePauseHandler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

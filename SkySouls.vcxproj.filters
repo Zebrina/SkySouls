@@ -2,23 +2,15 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
-    <ClCompile Include="MenuEquip.cpp" />
-    <ClCompile Include="SkySoulsSettings.cpp" />
+    <ClCompile Include="MemUtil.cpp" />
+    <ClCompile Include="GamePauseHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MenuCreation.h" />
-    <ClInclude Include="MenuEquip.h" />
-    <ClInclude Include="SkySoulsSettings.h" />
+    <ClInclude Include="MemUtil.h" />
+    <ClInclude Include="GamePauseHandler.h" />
+    <ClInclude Include="MenuCreator.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Exports.def" />
-    <None Include="SkySouls.ini">
-      <Filter>Configuration</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter Include="Configuration">
-      <UniqueIdentifier>{ceda4730-aa57-4919-9828-53ed0743ff44}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
 </Project>
