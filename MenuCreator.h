@@ -1,13 +1,11 @@
 #pragma once
 
-#include "MemUtil.h"
+#include "SKSEMemUtil.h"
 
 #include "skse/GameMenus.h"
 
 struct MenuCreator {
 	MenuManager::CreatorFunc originalMenuCreator = nullptr;
-
-	//MenuCreateFunctorBase()
 
 	operator MenuManager::CreatorFunc() const {
 		return originalMenuCreator;

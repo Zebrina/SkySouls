@@ -26,9 +26,9 @@
 
 #include "skse/SafeWrite.h"
 
-#include "MemUtil.h"
+#include "SKSEMemUtil.h"
 
-using namespace MemUtil;
+using namespace SKSEMemUtil;
 
 typedef void (UIManager::*UIManager_AddMessage)(StringCache::Ref* strData, UInt32 msgID, void* objData);
 typedef void (ActorProcessManager::*ActorProcessManager_UpdateEquipment)(Actor*);
@@ -64,6 +64,11 @@ void __fastcall UIManager_AddMessage_Hook(UIManager* thisPtr, void*, StringCache
 }
 */
 
+
+
+
+typedef void(*ShowNotification)(const char* str1, UInt32 /* 0x00000101*/, const char* str2, UInt32 /* length of str? -> 0x0000002c*/);
+IntPtr ShowNotificationFunction = 0x00402c00;
 
 void __fastcall ActorProcessManager_UpdateEquipment_Hook(ActorProcessManager* thisPtr, void*, Actor* actor) {
 	static BSFixedString inventoryMenu = UIStringHolder::GetSingleton()->inventoryMenu;
@@ -272,7 +277,7 @@ extern "C" {
 		// populate info structure
 		info->infoVersion = PluginInfo::kInfoVersion;
 		info->name = "SkySouls Plugin";
-		info->version = 1;
+		info->version = 2;
 
 		// store plugin handle so we can identify ourselves later
 		g_pluginHandle = skse->GetPluginHandle();

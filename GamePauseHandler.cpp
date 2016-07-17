@@ -3,7 +3,7 @@
 #include "skse/GameMenus.h"
 #include "skse/SafeWrite.h"
 
-using namespace MemUtil;
+using namespace SKSEMemUtil;
 
 GamePauseHandler** g_gamePauseHandler = (GamePauseHandler**)0x00400011;
 

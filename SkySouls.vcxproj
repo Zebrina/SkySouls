@@ -79,7 +79,7 @@
       <Optimization>MaxSpeed</Optimization>
       <SDLCheck>
       </SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\SKSEMemUtilLib;$(SolutionDir);$(SolutionDir)\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -106,7 +106,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\SKSEMemUtilLib;$(SolutionDir);$(SolutionDir)\..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -141,8 +141,8 @@
     <ProjectReference Include="..\..\common\common_vc9.vcxproj">
       <Project>{20c6411c-596f-4b85-be4e-8bc91f59d8a6}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\Niflib\niflib.vcxproj">
-      <Project>{19fd8ee6-79cc-4bac-9744-d9573be47c7e}</Project>
+    <ProjectReference Include="..\SKSEMemUtilLib\SKSEMemUtilLib.vcxproj">
+      <Project>{167acb7b-197e-44b3-8d7e-90887a1bee54}</Project>
     </ProjectReference>
     <ProjectReference Include="..\skse\skse.vcxproj">
       <Project>{aa0365ec-47ea-45aa-bb1f-ebbcccc466f2}</Project>
@@ -150,14 +150,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
-    <ClCompile Include="MemUtil.cpp" />
     <ClCompile Include="GamePauseHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Exports.def" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MemUtil.h" />
     <ClInclude Include="MenuCreator.h" />
     <ClInclude Include="GamePauseHandler.h" />
   </ItemGroup>

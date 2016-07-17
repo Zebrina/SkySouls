@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MemUtil.h"
+#include "SKSEMemUtil.h"
 
 #include "skse/GameTypes.h"
 #include "skse/GameMenus.h"
@@ -12,19 +12,19 @@
 class IMenu;
 class GamePauseHandler;
 
-extern const MemUtil::IntPtr IMenuVTable_MessageBoxMenu;
-extern const MemUtil::IntPtr IMenuVTable_TweenMenu;
-extern const MemUtil::IntPtr IMenuVTable_InventoryMenu;
-extern const MemUtil::IntPtr IMenuVTable_MagicMenu;
-extern const MemUtil::IntPtr IMenuVTable_ContainerMenu;
-extern const MemUtil::IntPtr IMenuVTable_FavoritesMenu;
-extern const MemUtil::IntPtr IMenuVTable_CraftingMenu;
-extern const MemUtil::IntPtr IMenuVTable_BarterMenu;
-extern const MemUtil::IntPtr IMenuVTable_TrainingMenu;
-extern const MemUtil::IntPtr IMenuVTable_LockpickingMenu;
-extern const MemUtil::IntPtr IMenuVTable_BookMenu;
-extern const MemUtil::IntPtr IMenuVTable_MapMenu;
-extern const MemUtil::IntPtr IMenuVTable_StatsMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_MessageBoxMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_TweenMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_InventoryMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_MagicMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_ContainerMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_FavoritesMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_CraftingMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_BarterMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_TrainingMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_LockpickingMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_BookMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_MapMenu;
+extern const SKSEMemUtil::IntPtr IMenuVTable_StatsMenu;
 
 template <>
 struct std::hash<BSFixedString> {
@@ -65,7 +65,7 @@ public:
 
 	template <class F>
 	void registerMenu(BSFixedString menuName, F& menuCreator) {
-		tHashSet<MenuTableItem, BSFixedString>* mtable = MemUtil::IntPtr(MenuManager::GetSingleton()) + 0xa4;
+		tHashSet<MenuTableItem, BSFixedString>* mtable = SKSEMemUtil::IntPtr(MenuManager::GetSingleton()) + 0xa4;
 
 		MenuTableItem* item = mtable->Find(&menuName);
 		if (item) {
@@ -77,9 +77,9 @@ public:
 	}
 
 private:
-	static std::unordered_map<BSFixedString, MemUtil::IntPtr> menuNameToVTableLookup;
+	static std::unordered_map<BSFixedString, SKSEMemUtil::IntPtr> menuNameToVTableLookup;
 
-	std::unordered_set<MemUtil::IntPtr> gamePauseDisabledSet;
+	std::unordered_set<SKSEMemUtil::IntPtr> gamePauseDisabledSet;
 
 	UInt32 disableCounter;
 	UInt32 tempDisableCounter;
@@ -108,10 +108,10 @@ private:
 			menuCreateFunctor(menu);
 
 			if (pausedByDefault && !_TestFlags(menu->flags, IMenu::kType_PauseGame)) {
-				gamePauseHandler->gamePauseDisabledSet.insert(MemUtil::IntPtr(_GetObjectVTable(menu)));
+				gamePauseHandler->gamePauseDisabledSet.insert(SKSEMemUtil::IntPtr(_GetObjectVTable(menu)));
 			}
 			else {
-				gamePauseHandler->gamePauseDisabledSet.erase(MemUtil::IntPtr(_GetObjectVTable(menu)));
+				gamePauseHandler->gamePauseDisabledSet.erase(SKSEMemUtil::IntPtr(_GetObjectVTable(menu)));
 			}
 		}
 
