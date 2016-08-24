@@ -58,10 +58,9 @@ public:
 	void disableTemporary(UInt32 ticks);
 	void disableConditionally(GamePauseCondition* condition);
 
-	void update(UInt32 gamePauseCounter, tArray<IMenu*>* menuStack);
+	void update(UInt32& gamePauseCounter, tArray<IMenu*>* menuStack);
 
-	void disable();
-	void enable();
+	void enable(bool flag = true);
 
 	template <class F>
 	void registerMenu(BSFixedString menuName, F& menuCreator) {
@@ -69,9 +68,8 @@ public:
 
 		MenuTableItem* item = mtable->Find(&menuName);
 		if (item) {
-			F& thisMenuCreator = getMenuCreator<F>();
-			thisMenuCreator = menuCreator;
-			thisMenuCreator((MenuManager::CreatorFunc)item->menuConstructor);
+			getMenuCreator<F>() = &menuCreator;
+			menuCreator((MenuManager::CreatorFunc)item->menuConstructor);
 			item->menuConstructor = (void*)CreateMenu<F>;
 		}
 	}
@@ -90,29 +88,28 @@ private:
 	GamePauseHandler();
 
 	template <class F>
-	static F& getMenuCreator() {
-		static F f;
+	static F*& getMenuCreator() {
+		static F* f = nullptr;
 		return f;
 	}
 
 	template <class F>
 	static IMenu* CreateMenu() {
-		F& menuCreateFunctor = getMenuCreator<F>();
+		F& menuCreateFunctor = *getMenuCreator<F>();
 
 		IMenu* menu = ((MenuManager::CreatorFunc)menuCreateFunctor)();
 
 		GamePauseHandler* gamePauseHandler = GetSingleton();
-		if (gamePauseHandler->disableCounter == 0 && gamePauseHandler->disableConditions.empty()) {
-			bool pausedByDefault = _TestFlags(menu->flags, IMenu::kType_PauseGame);
 
-			menuCreateFunctor(menu);
+		bool pausedByDefault = _TestFlags(menu->flags, IMenu::kType_PauseGame);
 
-			if (pausedByDefault && !_TestFlags(menu->flags, IMenu::kType_PauseGame)) {
-				gamePauseHandler->gamePauseDisabledSet.insert(SKSEMemUtil::IntPtr(_GetObjectVTable(menu)));
-			}
-			else {
-				gamePauseHandler->gamePauseDisabledSet.erase(SKSEMemUtil::IntPtr(_GetObjectVTable(menu)));
-			}
+		menuCreateFunctor(menu);
+
+		if (pausedByDefault && !_TestFlags(menu->flags, IMenu::kType_PauseGame)) {
+			gamePauseHandler->gamePauseDisabledSet.insert(SKSEMemUtil::IntPtr(_GetObjectVTable(menu)));
+		}
+		else {
+			gamePauseHandler->gamePauseDisabledSet.erase(SKSEMemUtil::IntPtr(_GetObjectVTable(menu)));
 		}
 
 		return menu;

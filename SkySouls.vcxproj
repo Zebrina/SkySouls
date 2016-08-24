@@ -141,7 +141,7 @@
     <ProjectReference Include="..\..\common\common_vc9.vcxproj">
       <Project>{20c6411c-596f-4b85-be4e-8bc91f59d8a6}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\SKSEMemUtilLib\SKSEMemUtilLib.vcxproj">
+    <ProjectReference Include="..\SKSEMemUtil\SKSEMemUtil.vcxproj">
       <Project>{167acb7b-197e-44b3-8d7e-90887a1bee54}</Project>
     </ProjectReference>
     <ProjectReference Include="..\skse\skse.vcxproj">

@@ -5,8 +5,6 @@
 
 using namespace SKSEMemUtil;
 
-GamePauseHandler** g_gamePauseHandler = (GamePauseHandler**)0x00400011;
-
 BSFixedString MainMenu("Main Menu");
 BSFixedString LoadingMenu("Loading Menu");
 BSFixedString Console("Console");
@@ -50,9 +48,6 @@ GamePauseHandler* GamePauseHandler::GetSingleton() {
 
 GamePauseHandler::GamePauseHandler() :
 	disableCounter(0), tempDisableCounter(0), gamePauseOverride(0) {
-	//_MESSAGE("numRealPauseRequests: 0x%.8x", &numRealPauseRequests);
-
-	SafeWrite32((UInt32)g_gamePauseHandler, (UInt32)this);
 }
 GamePauseHandler::~GamePauseHandler() {
 }
@@ -66,7 +61,7 @@ void GamePauseHandler::disableConditionally(GamePauseCondition* condition) {
 	disableConditions.push_front(condition);
 }
 
-void GamePauseHandler::update(UInt32 gamePauseCounter, tArray<IMenu*>* menuStack) {
+void GamePauseHandler::update(UInt32& gamePauseCounter, tArray<IMenu*>* menuStack) {
 	struct EvaluateCondition {
 		bool operator()(GamePauseCondition* condition) const {
 			if (condition->Evaluate()) {
@@ -77,6 +72,23 @@ void GamePauseHandler::update(UInt32 gamePauseCounter, tArray<IMenu*>* menuStack
 		}
 	};
 
+	if (disableConditions.empty()) {
+		// the most significant bits will never be modified by the menu manager
+		_ClearFlags(gamePauseCounter, 0x80000000);
+	}
+	else {
+		_SetFlags(gamePauseCounter, 0x80000000);
+		disableConditions.remove_if(EvaluateCondition());
+	}
+
+	if (tempDisableCounter == 0) {
+		_ClearFlags(gamePauseCounter, 0x40000000);
+	}
+	else {
+		_SetFlags(gamePauseCounter, 0x40000000);
+		--tempDisableCounter;
+	}
+
 	gamePauseOverride = gamePauseCounter > 0 ? 1 : 0;
 
 	if (gamePauseOverride == 0 && menuStack->count > 1) {
@@ -86,19 +98,13 @@ void GamePauseHandler::update(UInt32 gamePauseCounter, tArray<IMenu*>* menuStack
 			}
 		}
 	}
-
-	if (!disableConditions.empty()) {
-		disableConditions.remove_if(EvaluateCondition());
-	}
-
-	if (tempDisableCounter > 0) {
-		--tempDisableCounter;
-	}
 }
 
-void GamePauseHandler::disable() {
-	++disableCounter;
-}
-void GamePauseHandler::enable() {
-	--disableCounter;
+void GamePauseHandler::enable(bool flag) {
+	if (flag) {
+		--disableCounter;
+	}
+	else {
+		++disableCounter;
+	}
 }

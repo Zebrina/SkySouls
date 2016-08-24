@@ -234,11 +234,7 @@ _Pvt_Extensions
 
 # FAKE - F# Make
 .fake/
-/TESV.CT
-/Plugin/NoMenuPause.iobj
-/Plugin/NoMenuPause.ipdb
-/Plugin
 /InputManager.CSX
-/analysis.txt
 *.pex
 *.7z
+*.CT
