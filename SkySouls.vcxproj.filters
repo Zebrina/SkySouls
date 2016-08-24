@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Exports.def" />
+    <None Include="PropertySheet.props" />
   </ItemGroup>
 </Project>

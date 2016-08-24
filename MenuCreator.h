@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SKSEMemUtil.h"
+#include "SKSEMemUtil/SKSEMemUtil.h"
 
 #include "skse/GameMenus.h"
 
